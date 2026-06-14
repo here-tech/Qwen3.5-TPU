@@ -1,10 +1,10 @@
 # Qwen3.5-4B on Andata TPU webservice
 
-基于 SOPHGO BM1684x TPU 的 Qwen3.5-4B 多模态大模型推理部署方案，由 **aⁿ 乘方大数据** 提供。
+基于 SOPHGO BM1684x TPU 的 Qwen3.5-4B 多模态大模型推理 Web 服务，由 **aⁿ 乘方大数据** 提供。
 
 ## 项目简介
 
-本项目将 Qwen3.5-4B 模型量化部署到比特大陆 BM1684x TPU 计算卡上，提供高性能、低功耗的推理服务。支持：
+本项目将 Qwen3.5-4B 模型量化部署到比特大陆 BM1684x TPU 计算卡上，提供 HTTP API + Web Chat UI 的完整 Web 服务。同时支持 Qwen3.5-9B 模型，只需替换 bmodel 文件并修改启动参数即可切换。功能包括：
 
 - **文本对话** — 流式文本生成，支持多轮对话上下文
 - **图像理解** — 支持 JPG/PNG/GIF/BMP/WebP 图片输入
@@ -14,17 +14,17 @@
 
 ### 模型架构
 
-| 参数 | 值 |
-|------|-----|
-| 模型 | Qwen3.5-4B (Qwen3_5ForConditionalGeneration) |
-| 量化 | INT4 AutoRound W4BF16 |
-| 隐藏层维度 | 1024 |
-| Transformer 层数 | 24 (6层 full-attention + 18层 linear-attention) |
-| 注意力头数 | 8 |
-| 词表大小 | 248,320 |
-| 视觉编码器 | 12层 ViT, hidden_size=768 |
-| 最大序列长度 | 2048 tokens |
-| 最大输入长度 | 1024 tokens |
+| 参数 | Qwen3.5-4B | Qwen3.5-9B |
+|------|-----------|-----------|
+| 模型架构 | Qwen3_5ForConditionalGeneration | Qwen3_5ForConditionalGeneration |
+| 量化 | INT4 AutoRound W4BF16 | INT4 AutoRound W4BF16 |
+| 隐藏层维度 | 1024 | — |
+| Transformer 层数 | 24 (6 full + 18 linear) | — |
+| 注意力头数 | 8 | — |
+| 词表大小 | 248,320 | — |
+| 视觉编码器 | 12层 ViT, hidden=768 | — |
+| 最大序列长度 | 2048 tokens | 2048 tokens |
+| 最大输入长度 | 1024 tokens | — |
 
 ## 硬件要求
 
@@ -34,7 +34,7 @@
 - **内存**: ≥ 4GB RAM
 - **存储**: ≥ 10GB 可用空间
 
-当前已占用 TPU 显存: 3852MB / 8192MB
+Qwen3.5-4B TPU 显存占用: 3852MB / 8192MB
 
 ## 项目结构
 
@@ -90,18 +90,67 @@ pip install transformers qwen-vl-utils torch
 
 ### 3. 下载模型文件
 
-下载 bmodel 文件到本地：
+使用 SOPHGO 官方 dfss 工具下载 bmodel 文件。
+
+**Qwen3.5-4B 模型：**
 
 ```bash
-# 从 GitHub LFS 下载 (链接见 Release 页面)
-# 或联系 aⁿ 乘方大数据获取模型文件
+# 安装 dfss
+pip install dfss
 
-# 放置到指定位置
-mkdir -p /data/qwen
-cp qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel /data/qwen/
+# 下载 4B 模型
+python3 -m dfss --url=open@sophgo.com:/ext_model_information/LLM/LLM-TPU/qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel
+
+# 将下载的 bmodel 文件移动到项目目录 (或任意路径)
+mv qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel ./Qwen3.5/
 ```
 
-### 4. 编译 C++ 扩展 (如需要)
+**Qwen3.5-9B 模型：**
+
+```bash
+# 下载 9B 模型
+python3 -m dfss --url=open@sophgo.com:/ext_model_information/LLM/LLM-TPU/qwen3.5-9b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_150658.bmodel
+
+# 移动到项目目录
+mv qwen3.5-9b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_150658.bmodel ./Qwen3.5/
+```
+
+### 4. 修改 Python 文件中的模型路径
+
+下载 bmodel 文件后，在启动服务时需要指定正确的 bmodel 路径。有两种方式：
+
+**方式一：启动时通过命令行参数指定 (推荐)**
+
+启动 server.py 时通过 `-m` 参数指定 bmodel 文件路径，无需修改代码：
+
+```bash
+# 4B 模型
+python server.py -m ./qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel -c ./config --port 8080
+
+# 9B 模型 (替换为 9B 的 bmodel 路径即可)
+python server.py -m ./qwen3.5-9b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_150658.bmodel -c ./config --port 8080
+```
+
+**方式二：修改 server.py 中的默认路径**
+
+如果希望固定模型路径，可以直接修改 `server.py` 中 `__main__` 段的默认值。找到文件末尾的这段代码并修改 `model_path` 默认值：
+
+```python
+# server.py 末尾 (约第 200 行附近)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Qwen3.5 HTTP Server")
+    parser.add_argument("-m", "--model_path", type=str, required=True,   # <-- 将 required=True 改为 default="./your_model.bmodel"
+                        help="Path to bmodel file")
+    parser.add_argument("-c", "--config_path", type=str, default="../config",
+                        help="Path to processor config")
+    ...
+```
+
+同样，`pipeline.py` 中的模型路径也是通过 `-m` / `--model_path` 参数传入，切换模型时只需修改启动命令中的路径。
+
+### 5. 编译 C++ 扩展 (如需要)
+
+如果系统上没有预编译的 `.so` 文件，需要重新编译：
 
 ```bash
 cd Qwen3.5
@@ -119,8 +168,16 @@ cp chat.cpython-310-aarch64-linux-gnu.so ../
 cd Qwen3.5
 conda activate qwen3.5
 
+# 启动 4B 模型
 python server.py \
-  -m /data/qwen/qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel \
+  -m ./qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel \
+  -c ./config \
+  --port 8080 \
+  --host 0.0.0.0
+
+# 启动 9B 模型 (仅更换 bmodel 文件路径)
+python server.py \
+  -m ./qwen3.5-9b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_150658.bmodel \
   -c ./config \
   --port 8080 \
   --host 0.0.0.0
@@ -134,17 +191,25 @@ python server.py \
 cd Qwen3.5
 conda activate qwen3.5
 
-# 单次推理
+# 4B 单次推理
 python pipeline.py \
-  -m /data/qwen/qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel \
+  -m ./qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel \
+  -c ./config \
+  -p "你好，请介绍一下你自己"
+
+# 9B 单次推理
+python pipeline.py \
+  -m ./qwen3.5-9b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_150658.bmodel \
   -c ./config \
   -p "你好，请介绍一下你自己"
 
 # 交互式对话
 python pipeline.py \
-  -m /data/qwen/qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel \
+  -m ./qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel \
   -c ./config
 ```
+
+> **切换模型提示**：切换 4B/9B 模型只需修改 `-m` 参数指定的 bmodel 文件路径，config 目录和其余参数无需更改。
 
 ## API 文档
 
@@ -198,7 +263,7 @@ curl http://localhost:8080/health
 ```json
 {
   "status": "ok",
-  "model": "qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel",
+  "model": "qwen3.5-4b-...",
   "active_requests": 0,
   "total_requests": 10
 }
@@ -213,7 +278,7 @@ curl http://localhost:8080/api/status
 ```json
 {
   "status": "idle",
-  "model": "qwen3.5-4b-int4-autoround_w4bf16_seq2048_bm1684x_1dev_dynamic_20260416_144422.bmodel",
+  "model": "qwen3.5-4b-...",
   "active_requests": 0,
   "total_requests": 10,
   "max_input_length": 1024,
@@ -238,7 +303,7 @@ curl http://localhost:8080/api/status
 
 ## 性能指标
 
-在 BM1684x TPU 上的实测性能：
+在 BM1684x TPU 上的实测性能 (Qwen3.5-4B)：
 
 - **FTL (首Token延迟)**: ~0.2s
 - **TPS (生成速度)**: ~15 tokens/s
