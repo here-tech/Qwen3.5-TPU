@@ -1,4 +1,4 @@
-# Qwen3.5-4B on Andata TPU
+# Qwen3.5-4B on Andata TPU webservice
 
 基于 SOPHGO BM1684x TPU 的 Qwen3.5-4B 多模态大模型推理部署方案，由 **aⁿ 乘方大数据** 提供。
 
