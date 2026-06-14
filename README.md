@@ -26,6 +26,30 @@
 | 最大序列长度 | 2048 tokens | 2048 tokens |
 | 最大输入长度 | 1024 tokens | — |
 
+## 并发处理机制
+
+服务支持多用户并发访问，核心设计：
+
+- **模型单例** — 一个 TPU 设备运行一个模型实例，所有用户共享
+- **锁超时机制** — `threading.Lock` 保护模型推理，超时 300 秒后返回 503
+- **请求追踪** — `active_count` / `total_count` 实时监控并发状态
+- **健康感知** — `/health` 和 `/api/status` 区分 `idle`/`busy`/`ok` 状态
+
+```
+用户A ──┐                ┌── TPU Model ──► 响应A
+        ├── Lock Queue ──┤
+用户B ──┘   (timeout=300s) └──► 响应B
+```
+
+## 性能指标
+
+在 BM1684x TPU 上的实测性能 (Qwen3.5-4B)：
+
+- **FTL (首Token延迟)**: ~0.2s
+- **TPS (生成速度)**: ~15 tokens/s
+- **TPU 显存占用**: 3852MB / 8192MB
+- **TPU 功耗**: ~20-40W
+
 ## 硬件要求
 
 - **TPU**: SOPHGO BM1684x 计算卡 (8GB 显存)
@@ -285,30 +309,6 @@ curl http://localhost:8080/api/status
   "seqlength": 2048
 }
 ```
-
-## 并发处理机制
-
-服务支持多用户并发访问，核心设计：
-
-- **模型单例** — 一个 TPU 设备运行一个模型实例，所有用户共享
-- **锁超时机制** — `threading.Lock` 保护模型推理，超时 300 秒后返回 503
-- **请求追踪** — `active_count` / `total_count` 实时监控并发状态
-- **健康感知** — `/health` 和 `/api/status` 区分 `idle`/`busy`/`ok` 状态
-
-```
-用户A ──┐                ┌── TPU Model ──► 响应A
-        ├── Lock Queue ──┤
-用户B ──┘   (timeout=300s) └──► 响应B
-```
-
-## 性能指标
-
-在 BM1684x TPU 上的实测性能 (Qwen3.5-4B)：
-
-- **FTL (首Token延迟)**: ~0.2s
-- **TPS (生成速度)**: ~15 tokens/s
-- **TPU 显存占用**: 3852MB / 8192MB
-- **TPU 功耗**: ~25W
 
 ## 致谢
 
