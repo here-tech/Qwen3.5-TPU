@@ -57,9 +57,11 @@
 - **系统**: Linux (aarch64), Debian/Ubuntu
 - **内存**: ≥ 4GB RAM
 - **存储**: ≥ 10GB 可用空间
+- Qwen3.5-4B TPU 显存占用: 3852MB / 8192MB
+  
 <img width="1800" height="1434" alt="Screenshot_2026-06-14-17-18-18-570_com microsoft emmx-edit" src="https://github.com/user-attachments/assets/3f6b5943-c239-4083-b989-2db96bd45795" />
 
-Qwen3.5-4B TPU 显存占用: 3852MB / 8192MB
+
 
 ## 项目结构
 
